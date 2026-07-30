@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#071d2f">
+<meta name="description" content="Offline arrival, departure and stop-time tracker for the Bike Busters 2026 rally.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BikeBusters">
+<title>Bike Busters 2026 Rally Tracker</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+<style>
+:root{
+  --bg:#071d2f;--panel:#0c2940;--panel2:#10344f;--text:#f5f7fa;
+  --muted:#9eb1c1;--good:#56cc69;--bad:#ff5d52;--warn:#ffc51b;
+  --accent:#43b8f5;--line:#29465b;--locked:#677887;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  min-height:100vh;min-height:100dvh;padding-top:env(safe-area-inset-top)
+}
+.wrap{max-width:900px;margin:0 auto;padding:12px 12px calc(112px + env(safe-area-inset-bottom))}
+.header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px}
+.brand-logo{display:block;width:min(330px,72vw);height:auto}
+.install-btn{display:none;width:auto;white-space:nowrap;padding:9px 12px}
+.install-btn.show{display:block}
+.top{display:grid;grid-template-columns:.68fr 1.16fr 1.16fr;gap:9px;margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.label{color:var(--muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.055em}
+.big{font-size:1.26rem;font-weight:850;margin-top:3px;line-height:1.22}
+.clock{font-variant-numeric:tabular-nums;white-space:nowrap}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+button{
+  width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--text);font-size:.96rem;font-weight:780;
+  cursor:pointer;touch-action:manipulation
+}
+button.primary{background:#137bb4;border-color:#2aa7e4;color:#fff}
+button.depart{background:#207a46;border-color:#37a665;color:#fff}
+button.danger{background:#3a2024;border-color:#6b2e35}
+button.confirm-reset{background:#a82332;border-color:#d43b4d}
+button:disabled{cursor:not-allowed;opacity:.42}
+.route{display:flex;flex-direction:column;gap:8px}
+.stop{
+  display:grid;grid-template-columns:62px minmax(0,1fr) 126px;gap:10px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px
+}
+.stop.current{border-color:var(--warn);box-shadow:0 0 0 1px rgba(255,197,27,.18)}
+.stop.arrived{border-color:#8a7334}.stop.done{border-color:#426553}
+.stop.locked{opacity:.62}
+.time{font-weight:850;font-size:1.04rem;font-variant-numeric:tabular-nums;color:#dce8f1}
+.name{font-weight:850;font-size:1.03rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.actual-meta{font-size:.82rem;color:#c7d5df;margin-top:4px;line-height:1.35}
+.delta{
+  min-width:0;text-align:center;padding:9px 8px;border-radius:10px;font-size:.9rem;
+  font-weight:850;font-variant-numeric:tabular-nums;background:var(--panel2);line-height:1.18
+}
+.delta.good{background:rgba(86,204,105,.13)}.delta.bad{background:rgba(255,93,82,.13)}
+.delta.warn{background:rgba(255,197,27,.12)}.delta.locked{color:var(--locked)}
+.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.actions button{width:auto;flex:1 1 138px;padding:9px;font-size:.88rem}
+.log-card{margin-top:14px}
+.table-wrap{overflow-x:auto;margin-top:8px}
+table{width:100%;border-collapse:collapse;min-width:860px;font-size:.84rem}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--muted);font-size:.71rem;text-transform:uppercase}
+.footer{
+  position:fixed;left:0;right:0;bottom:0;background:rgba(7,29,47,.98);
+  border-top:1px solid var(--line);padding:10px 10px calc(10px + env(safe-area-inset-bottom));z-index:10
+}
+.footer-inner{max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pwa-status{display:flex;align-items:center;justify-content:center;gap:6px;margin:12px 0 0;font-size:.74rem;color:var(--muted)}
+.pwa-dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+.pwa-status.online .pwa-dot{background:var(--good)}.pwa-status.offline .pwa-dot{background:var(--bad)}
+@media(max-width:650px){
+  .top{grid-template-columns:1fr 1fr}.clock-card{grid-column:1/-1}
+  .stop{grid-template-columns:54px minmax(0,1fr)}
+  .delta{grid-column:2;width:100%}
+  .name{white-space:normal}
+  .brand-logo{width:min(295px,72vw)}
+}
+@media(max-width:390px){
+  .wrap{padding-left:8px;padding-right:8px}.stop{padding:9px;gap:8px}
+  .big{font-size:1.12rem}.actions button{flex-basis:118px}
+}
+@media(display-mode:standalone){.install-btn{display:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <img class="brand-logo" src="./icons/bikebusters-header-logo.png" alt="Bike Busters">
+    <button id="installBtn" class="install-btn">Install app</button>
+  </div>
+
+  <div class="top">
+    <div class="card clock-card">
+      <div class="label">Current time</div>
+      <div class="big clock" id="clock">--:--:--</div>
+    </div>
+    <div class="card">
+      <div class="label">Status</div>
+      <div class="big" id="overall">At HQ — Start</div>
+    </div>
+    <div class="card">
+      <div class="label">Next stop</div>
+      <div class="big" id="nextStop">P — Pamphill</div>
+    </div>
+  </div>
+
+  <div class="route" id="route"></div>
+
+  <div class="card log-card">
+    <div class="label">Ride and stop log</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Stop</th><th>Scheduled</th><th>Arrived</th>
+            <th>Departed</th><th>Stop time</th><th>Arrival pace</th><th>Departure pace</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="pwaStatus" class="pwa-status"><span class="pwa-dot"></span><span>Preparing offline mode…</span></div>
+</div>
+
+<div class="footer">
+  <div class="footer-inner">
+    <button id="exportBtn">Download ride CSV</button>
+    <button id="resetBtn" class="danger">Reset day</button>
+  </div>
+</div>
+
+<script>
+const stops = [
+  {code:"HQ", name:"Start", time:"10:00", mins:0, kind:"start"},
+  {code:"P", name:"Pamphill", time:"10:09", mins:15},
+  {code:"T", name:"Tolpuddle", time:"10:49", mins:15},
+  {code:"J", name:"Jailhouse Diner", time:"11:48", mins:15},
+  {code:"MA", name:"Milton Abbas", time:"12:48", mins:15},
+  {code:"CO", name:"Child Okeford", time:"13:22", mins:15},
+  {code:"OB", name:"The Old Brewery", time:"14:03", mins:15},
+  {code:"FUEL 1", name:"Fuel stop", time:"14:23", mins:15},
+  {code:"HO", name:"Homington", time:"15:18", mins:15},
+  {code:"A", name:"Alderbury", time:"15:45", mins:15},
+  {code:"HG", name:"Hook and Glove", time:"16:08", mins:15},
+  {code:"K", name:"Kings Somborne", time:"16:48", mins:15},
+  {code:"B", name:"Braishfield", time:"17:14", mins:15},
+  {code:"HQ", name:"Finish", time:"18:25", mins:0, kind:"finish"}
+];
+
+const stateKey = "bikebusters2026_pace_v3";
+let state;
+try { state = JSON.parse(localStorage.getItem(stateKey) || "{}"); }
+catch { state = {}; }
+if(!state.records) state.records = {};
+
+const nominalStartMinutes = toMinutes(stops[0].time);
+
+function save(){
+  localStorage.setItem(stateKey, JSON.stringify(state));
+}
+function recordFor(i){
+  if(!state.records[i]) state.records[i] = {};
+  return state.records[i];
+}
+function toMinutes(timeStr){
+  const [h,m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+}
+function nominalAnchor(){
+  const d = new Date();
+  d.setHours(10,0,0,0);
+  return d;
+}
+function scheduleAnchor(){
+  const start = state.records[0] && state.records[0].departure;
+  return start ? new Date(start) : nominalAnchor();
+}
+function plannedArrivalDate(stop){
+  if(stop.kind === "start") return null;
+  return new Date(scheduleAnchor().getTime() + (toMinutes(stop.time) - nominalStartMinutes) * 60000);
+}
+function plannedDepartureDate(stop){
+  if(stop.kind === "finish") return null;
+  if(stop.kind === "start") return scheduleAnchor();
+  const arrival = plannedArrivalDate(stop);
+  return new Date(arrival.getTime() + stop.mins * 60000);
+}
+function displayScheduleTime(stop){
+  if(stop.kind === "start"){
+    const start = state.records[0] && state.records[0].departure;
+    return start ? fmtTime(start) : stop.time;
+  }
+  return fmtTime(plannedArrivalDate(stop));
+}
+function fmtTime(ts){
+  if(!ts) return "";
+  return new Date(ts).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", hour12:false});
+}
+function fmtDateTime(ts){
+  if(!ts) return "";
+  return new Date(ts).toLocaleString([], {
+    year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false
+  });
+}
+function deltaMinutes(actual, planned){
+  if(!actual || !planned) return null;
+  return Math.round((new Date(actual) - planned) / 60000);
+}
+function durationMinutes(start, end){
+  if(!start || !end) return null;
+  return Math.max(0, Math.round((new Date(end) - new Date(start)) / 60000));
+}
+function fmtDelta(mins){
+  if(mins === null || mins === undefined) return "";
+  if(mins === 0) return "On time";
+  const a = Math.abs(mins);
+  return `${a} min ${mins < 0 ? "ahead" : "behind"}`;
+}
+function clsFor(mins){
+  if(mins === null || mins === undefined) return "";
+  if(mins < 0) return "good";
+  if(mins <= 10) return "warn";
+  return "bad";
+}
+function fmtCountdown(ms){
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2,"0")} left`;
+}
+function isComplete(i){
+  const stop = stops[i];
+  const rec = state.records[i] || {};
+  return stop.kind === "finish" ? Boolean(rec.arrival) : Boolean(rec.departure);
+}
+function isUnlocked(i){
+  return i === 0 || isComplete(i - 1);
+}
+function activeIndex(){
+  for(let i=0;i<stops.length;i++){
+    if(!isComplete(i)) return i;
+  }
+  return stops.length - 1;
+}
+function stopStatus(stop, rec, i){
+  const now = new Date();
+  const unlocked = isUnlocked(i);
+  if(!unlocked && !rec.arrival && !rec.departure) return {text:"Locked", cls:"locked"};
+
+  if(stop.kind === "start"){
+    return rec.departure ? {text:`Started ${fmtTime(rec.departure)}`, cls:"good"} : {text:"Start here", cls:"warn"};
+  }
+  if(stop.kind === "finish"){
+    if(rec.arrival){
+      const delta = deltaMinutes(rec.arrival, plannedArrivalDate(stop));
+      return {text:`Finished · ${fmtDelta(delta)}`, cls:clsFor(delta)};
+    }
+  }
+  if(rec.departure){
+    const delta = deltaMinutes(rec.departure, plannedDepartureDate(stop));
+    return {text:`Left · ${fmtDelta(delta)}`, cls:clsFor(delta)};
+  }
+  if(rec.arrival){
+    const plannedLeave = new Date(new Date(rec.arrival).getTime() + stop.mins * 60000);
+    const remaining = plannedLeave - now;
+    if(remaining > 0) return {text:fmtCountdown(remaining), cls:"warn"};
+    const over = Math.floor(Math.abs(remaining) / 60000);
+    const secs = Math.floor((Math.abs(remaining) % 60000) / 1000);
+    return {text:`${over}:${String(secs).padStart(2,"0")} over`, cls:"bad"};
+  }
+
+  const planned = plannedArrivalDate(stop);
+  const delta = Math.round((now - planned) / 60000);
+  if(now < planned) return {text:`Due in ${Math.ceil((planned-now)/60000)} min`, cls:""};
+  return {text:fmtDelta(delta), cls:clsFor(delta)};
+}
+function actualLine(stop, rec){
+  const parts = [];
+  if(rec.arrival) parts.push(`Arrived ${fmtTime(rec.arrival)}`);
+  if(rec.departure) parts.push(`${stop.kind === "start" ? "Started" : "Departed"} ${fmtTime(rec.departure)}`);
+  if(rec.arrival && rec.departure && stop.mins) parts.push(`Stop ${durationMinutes(rec.arrival, rec.departure)} min`);
+  return parts.join(" · ");
+}
+function buttonsFor(stop, rec, i){
+  if(!isUnlocked(i) && !rec.arrival && !rec.departure){
+    return `<button disabled>Complete previous stop</button>`;
+  }
+  const buttons = [];
+  if(stop.kind === "start"){
+    buttons.push(`<button class="depart" data-depart="${i}">${rec.departure ? "Update start time" : "Start / depart now"}</button>`);
+  } else {
+    buttons.push(`<button class="primary" data-arrive="${i}">${rec.arrival ? "Update arrival time" : "Arrived now"}</button>`);
+    if(stop.kind !== "finish" && rec.arrival){
+      buttons.push(`<button class="depart" data-depart="${i}">${rec.departure ? "Update departure time" : "Departing now"}</button>`);
+    }
+  }
+  if(rec.arrival || rec.departure) buttons.push(`<button data-clear="${i}">Clear from here</button>`);
+  return buttons.join("");
+}
+function render(){
+  const root = document.getElementById("route");
+  const logBody = document.getElementById("logBody");
+  root.innerHTML = "";
+  logBody.innerHTML = "";
+  const current = activeIndex();
+
+  stops.forEach((s,i)=>{
+    const rec = state.records[i] || {};
+    const status = stopStatus(s, rec, i);
+    const complete = isComplete(i);
+    const arrived = Boolean(rec.arrival) && !complete;
+    const locked = !isUnlocked(i) && !rec.arrival && !rec.departure;
+    const actual = actualLine(s, rec);
+
+    const el = document.createElement("div");
+    el.className = "stop" + (complete ? " done" : arrived ? " arrived" : "") + (locked ? " locked" : "") + (i === current ? " current" : "");
+    el.innerHTML = `
+      <div class="time">${displayScheduleTime(s)}</div>
+      <div>
+        <div class="name">${s.code} — ${s.name}</div>
+        ${actual ? `<div class="actual-meta">${actual}</div>` : ""}
+        <div class="actions">${buttonsFor(s, rec, i)}</div>
+      </div>
+      <div class="delta ${status.cls}">${status.text}</div>`;
+    root.appendChild(el);
+
+    const plannedArrival = plannedArrivalDate(s);
+    const plannedDeparture = plannedDepartureDate(s);
+    const arrivalDelta = deltaMinutes(rec.arrival, plannedArrival);
+    const departureDelta = deltaMinutes(rec.departure, plannedDeparture);
+    const stopDuration = s.mins ? durationMinutes(rec.arrival, rec.departure) : null;
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${i+1}</td>
+      <td>${s.code} — ${s.name}</td>
+      <td>${displayScheduleTime(s)}</td>
+      <td>${fmtTime(rec.arrival)}</td>
+      <td>${fmtTime(rec.departure)}</td>
+      <td>${stopDuration === null ? "" : `${stopDuration} min`}</td>
+      <td>${fmtDelta(arrivalDelta)}</td>
+      <td>${fmtDelta(departureDelta)}</td>`;
+    logBody.appendChild(row);
+  });
+  updateTopStatus();
+}
+function updateTopStatus(){
+  const overall = document.getElementById("overall");
+  const next = document.getElementById("nextStop");
+
+  if(isComplete(stops.length - 1)){
+    overall.textContent = "At HQ — Finish";
+    next.textContent = "Ride complete";
+    return;
+  }
+
+  let atIndex = null;
+  for(let i=0;i<stops.length;i++){
+    const rec = state.records[i] || {};
+    if(stops[i].kind === "start" && !rec.departure){ atIndex = 0; break; }
+    if(rec.arrival && !rec.departure){ atIndex = i; break; }
+  }
+
+  const nextIndex = activeIndex();
+  if(atIndex !== null){
+    overall.textContent = `At ${stops[atIndex].code} — ${stops[atIndex].name}`;
+    const n = atIndex === 0 && !isComplete(0) ? 1 : Math.min(atIndex + 1, stops.length - 1);
+    next.textContent = `${stops[n].code} — ${stops[n].name}`;
+  } else {
+    overall.textContent = "En route";
+    next.textContent = `${stops[nextIndex].code} — ${stops[nextIndex].name}`;
+  }
+}
+function clearFrom(index){
+  for(let i=index;i<stops.length;i++) delete state.records[i];
+  save();
+  render();
+}
+
+document.addEventListener("click", (e)=>{
+  const arrive = e.target.dataset.arrive;
+  const depart = e.target.dataset.depart;
+  const clear = e.target.dataset.clear;
+
+  if(arrive !== undefined){
+    const i = Number(arrive);
+    if(!isUnlocked(i)) return;
+    const rec = recordFor(i);
+    rec.arrival = new Date().toISOString();
+    if(rec.departure && new Date(rec.departure) < new Date(rec.arrival)) delete rec.departure;
+    save();render();
+  }
+  if(depart !== undefined){
+    const i = Number(depart);
+    if(!isUnlocked(i)) return;
+    const rec = recordFor(i);
+    if(stops[i].kind !== "start" && !rec.arrival) return;
+    rec.departure = new Date().toISOString();
+    save();render();
+  }
+  if(clear !== undefined) clearFrom(Number(clear));
+});
+
+let resetArmed = false;
+let resetTimer;
+document.getElementById("resetBtn").addEventListener("click", (e)=>{
+  const btn = e.currentTarget;
+  if(!resetArmed){
+    resetArmed = true;
+    btn.textContent = "Tap again to confirm reset";
+    btn.classList.add("confirm-reset");
+    clearTimeout(resetTimer);
+    resetTimer = setTimeout(()=>{
+      resetArmed = false;btn.textContent = "Reset day";btn.classList.remove("confirm-reset");
+    },5000);
+    return;
+  }
+  state.records = {};
+  save();
+  resetArmed = false;
+  btn.textContent = "Reset complete";
+  btn.classList.remove("confirm-reset");
+  render();
+  setTimeout(()=>{btn.textContent = "Reset day";},1500);
+});
+
+document.getElementById("exportBtn").addEventListener("click", ()=>{
+  const rows = [[
+    "Order","Code","Stop","Scheduled arrival","Actual arrival","Actual arrival date and time",
+    "Arrival minutes ahead or behind","Scheduled departure","Actual departure",
+    "Actual departure date and time","Departure minutes ahead or behind","Actual stop minutes"
+  ]];
+  stops.forEach((s,i)=>{
+    const rec = state.records[i] || {};
+    const plannedArrival = plannedArrivalDate(s);
+    const plannedDeparture = plannedDepartureDate(s);
+    rows.push([
+      i+1,s.code,s.name,fmtTime(plannedArrival),fmtTime(rec.arrival),fmtDateTime(rec.arrival),
+      deltaMinutes(rec.arrival,plannedArrival) ?? "",fmtTime(plannedDeparture),fmtTime(rec.departure),
+      fmtDateTime(rec.departure),deltaMinutes(rec.departure,plannedDeparture) ?? "",
+      s.mins ? durationMinutes(rec.arrival,rec.departure) ?? "" : ""
+    ]);
+  });
+  const csv = "\uFEFF" + rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  const blob = new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const dateSource = state.records[0] && state.records[0].departure ? new Date(state.records[0].departure) : new Date();
+  const date = `${dateSource.getFullYear()}-${String(dateSource.getMonth()+1).padStart(2,"0")}-${String(dateSource.getDate()).padStart(2,"0")}`;
+  a.href = url;a.download = `BikeBusters-2026-ride-log-${date}.csv`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+});
+
+setInterval(()=>{
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+  render();
+},1000);
+
+function updateConnectionStatus(){
+  const status = document.getElementById("pwaStatus");
+  const text = status.querySelector("span:last-child");
+  status.classList.toggle("online",navigator.onLine);
+  status.classList.toggle("offline",!navigator.onLine);
+  text.textContent = navigator.onLine ? "Online · v4 offline copy ready" : "Offline · using v4 saved app copy";
+}
+window.addEventListener("online",updateConnectionStatus);
+window.addEventListener("offline",updateConnectionStatus);
+updateConnectionStatus();
+
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById("installBtn");
+window.addEventListener("beforeinstallprompt",(event)=>{
+  event.preventDefault();deferredInstallPrompt = event;installBtn.classList.add("show");
+});
+installBtn.addEventListener("click",async()=>{
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;installBtn.classList.remove("show");
+});
+window.addEventListener("appinstalled",()=>{
+  deferredInstallPrompt = null;installBtn.classList.remove("show");
+});
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load",async()=>{
+    try{await navigator.serviceWorker.register("./sw.js");}
+    catch(error){console.error("Service worker registration failed:",error);}
+  });
+}
+
+render();
+</script>
+</body>
+</html>
